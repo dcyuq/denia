@@ -478,6 +478,14 @@ async def send_log(guild, embed):
     except (discord.Forbidden, discord.HTTPException):
         pass
 
+def slugify(text):
+    return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
+
+def ticket_channel_name(label, user):
+    slug = slugify(label) or "ticket"
+    who = slugify(user.name) or str(user.id)
+    return f"{slug}-{who}"[:100]
+
 async def create_ticket(interaction, button_data, answers):
     guild = interaction.guild
     settings = get_config(guild.id)
@@ -541,7 +549,7 @@ async def create_ticket(interaction, button_data, answers):
 
     try:
         channel = await guild.create_text_channel(
-            name=f"ticket-{number:04d}",
+            name=ticket_channel_name(button_data["label"], interaction.user),
             category=category,
             overwrites=overwrites,
             reason=f"Ticket opened by {interaction.user}",
