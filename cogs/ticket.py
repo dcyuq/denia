@@ -457,7 +457,7 @@ def build_panel_payload(settings):
         description=panel["description"][:4096],
         color=panel["color"],
     )
-    if mode == "embed_title":
+    if mode == "embed_title" and panel.get("title"):
         embed.title = panel["title"][:256]
     if panel.get("image_url"):
         embed.set_image(url=panel["image_url"])
@@ -1031,7 +1031,11 @@ class ContainerPanelView(discord.ui.LayoutView):
         panel = settings["panel"]
         buttons = settings["buttons"]
 
-        container = discord.ui.Container(accent_colour=discord.Colour(panel["color"]))
+        color = panel.get("color")
+        if color is None:
+            container = discord.ui.Container()
+        else:
+            container = discord.ui.Container(accent_colour=discord.Colour(color))
 
         title = (panel.get("title") or "").strip()
         desc = (panel.get("description") or "").strip()
@@ -1157,7 +1161,10 @@ class EmbedEditModal(discord.ui.Modal, title="Panel Appearance"):
         panel = settings["panel"]
 
         self.f_title = discord.ui.TextInput(
-            label="Title", default=panel["title"], max_length=256, required=True
+            label="Title - blank for no header",
+            default=panel.get("title") or "",
+            max_length=256,
+            required=False,
         )
         self.f_desc = discord.ui.TextInput(
             label="Description",
@@ -1167,9 +1174,9 @@ class EmbedEditModal(discord.ui.Modal, title="Panel Appearance"):
             required=True,
         )
         self.f_color = discord.ui.TextInput(
-            label="Colour hex",
-            default=f"{panel['color']:06X}",
-            placeholder="5865F2",
+            label="Colour hex - blank for a plain box",
+            default=(f"{panel['color']:06X}" if panel.get("color") is not None else ""),
+            placeholder="585858",
             max_length=7,
             required=False,
         )
@@ -1203,7 +1210,8 @@ class EmbedEditModal(discord.ui.Modal, title="Panel Appearance"):
         panel = self.settings["panel"]
         panel["title"] = resolve_text(self.f_title.value, guild, client)
         panel["description"] = resolve_text(self.f_desc.value, guild, client)
-        panel["color"] = parse_color(self.f_color.value, panel["color"])
+        raw_color = self.f_color.value.strip()
+        panel["color"] = parse_color(raw_color, panel["color"]) if raw_color else None
         panel["image_url"] = clean_url(self.f_image.value)
         panel["thumbnail_url"] = clean_url(self.f_thumb.value)
         save_config()
