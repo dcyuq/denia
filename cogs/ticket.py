@@ -77,6 +77,11 @@ PANEL_MODES = [
         "Same embed, no title. Slimmer.",
     ),
     (
+        "container",
+        "Embed with buttons inside",
+        "One box that holds the text and the buttons together.",
+    ),
+    (
         "text",
         "Plain text",
         "No embed. A normal message with buttons under it.",
@@ -430,6 +435,8 @@ def clean_url(text):
 
 def build_panel_view(guild_id, settings):
     panel = settings["panel"]
+    if panel_mode(panel) == "container":
+        return ContainerPanelView(guild_id, settings)
     if panel.get("layout") == "dropdown":
         return DropdownPanelView(guild_id, settings["buttons"], panel.get("placeholder"))
     if panel_mode(panel) == "bare":
@@ -440,7 +447,7 @@ def build_panel_payload(settings):
     panel = settings["panel"]
     mode = panel_mode(panel)
 
-    if mode == "bare":
+    if mode in ("bare", "container"):
         return None, None
 
     if mode == "text":
@@ -1018,6 +1025,45 @@ class DropdownPanelView(discord.ui.View):
         self.add_item(TicketSelect(guild_id, buttons, placeholder))
 
 
+class ContainerPanelView(discord.ui.LayoutView):
+    def __init__(self, guild_id, settings):
+        super().__init__(timeout=None)
+        panel = settings["panel"]
+        buttons = settings["buttons"]
+
+        container = discord.ui.Container(accent_colour=discord.Colour(panel["color"]))
+
+        title = (panel.get("title") or "").strip()
+        desc = (panel.get("description") or "").strip()
+        if title:
+            body = f"## {title}\n{desc}" if desc else f"## {title}"
+        else:
+            body = desc
+        if body:
+            container.add_item(discord.ui.TextDisplay(body[:4000]))
+
+        if panel.get("image_url"):
+            container.add_item(
+                discord.ui.MediaGallery(discord.MediaGalleryItem(panel["image_url"]))
+            )
+
+        if body or panel.get("image_url"):
+            container.add_item(discord.ui.Separator())
+
+        if panel.get("layout") == "dropdown":
+            row = discord.ui.ActionRow()
+            row.add_item(TicketSelect(guild_id, buttons, panel.get("placeholder")))
+            container.add_item(row)
+        else:
+            for start in range(0, min(len(buttons), MAX_BUTTONS), 5):
+                row = discord.ui.ActionRow()
+                for button_data in buttons[start:start + 5]:
+                    row.add_item(TicketOpenButton(guild_id, button_data))
+                container.add_item(row)
+
+        self.add_item(container)
+
+
 class TicketControls(discord.ui.ActionRow):
     @discord.ui.button(
         label="Claim", style=discord.ButtonStyle.secondary, custom_id="ticket:claim"
@@ -1357,6 +1403,7 @@ class AppearanceView(discord.ui.View):
         notes = {
             "embed_title": "Title, description, images and colour all apply.",
             "embed_plain": "Title is hidden. Everything else applies.",
+            "container": "The buttons sit inside the box, under the text.",
             "text": "Only the description is used, as plain message text.",
             "bare": "Nothing but buttons. Text, colour and images are ignored.",
         }
